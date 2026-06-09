@@ -82,7 +82,7 @@ def _empty_api() -> dict:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     empty = {
         "general": {
-            "start_date": "", "end_date": "", "date_time": now,
+            "start_date": "", "end_date": "", "date_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
             "total_requests": 0, "valid_requests": 0, "failed_requests": 0,
             "unique_visitors": 0, "unique_files": 0,
         },
