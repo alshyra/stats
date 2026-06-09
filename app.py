@@ -16,6 +16,8 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="Stats", version="0.2.0")
 
+VPS_IPS = {"51.210.179.59", "127.0.0.1", "::1"}
+
 LOG_DIR = Path("/logs")
 REFRESH_INTERVAL = 30
 
@@ -175,6 +177,8 @@ def _parse_logs() -> dict:
 
                     client = e.get("ClientHost", "?")
                     host = e.get("RequestHost", "-")
+                    if host in VPS_IPS:
+                        continue
                     path = e.get("RequestPath", "/")
                     method = e.get("RequestMethod", "GET")
                     status = e.get("OriginStatus", 0) or e.get("DownstreamStatus", 0)
