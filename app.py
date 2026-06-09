@@ -128,6 +128,8 @@ def _build_section(d: dict) -> dict:
         "general": {
             "start_date": min(d["visitors_by_date"].keys()) if d["visitors_by_date"] else "",
             "end_date": max(d["visitors_by_date"].keys()) if d["visitors_by_date"] else "",
+            "date_time": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.000Z"),
             "total_requests": d["lines"],
             "valid_requests": d["lines"],
             "failed_requests": sum(1 for s in d["statuses"] if int(s) >= 500),
