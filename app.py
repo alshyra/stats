@@ -191,9 +191,9 @@ def _parse_logs() -> dict:
                     path = e.get("RequestPath", "/")
                     method = e.get("RequestMethod", "GET")
                     status = e.get("OriginStatus", 0) or e.get("DownstreamStatus", 0)
-                    ua = e.get("RequestUserAgent", "-")
+                    ua = e.get("RequestUserAgent", "") or e.get("RequestHeader.User-Agent", "") or ""
                     dt = _parse_time(e.get("StartLocal") or e.get("time", ""))
-                    is_bot = any(p in ua.lower() for p in BOT_UA_PATTERNS) if ua and ua != "-" else False
+                    is_bot = any(p in ua.lower() for p in BOT_UA_PATTERNS) if ua else False
 
                     # Track in both aggregate and per-domain
                     for bucket in (agg, per_domain[host]):
