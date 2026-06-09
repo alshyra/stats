@@ -4,616 +4,383 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tableau de bord — Trafic</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
 :root {
-  --bg: #0a0a14;
-  --surface: #14142a;
-  --border: #1e1e3a;
-  --text: #e2e8f0;
-  --muted: #64748b;
-  --accent: #06b6d4;
-  --accent-dim: rgba(6, 182, 212, 0.15);
-  --amber: #f59e0b;
-  --emerald: #10b981;
-  --red: #ef4444;
-  --chart-bg: rgba(6, 182, 212, 0.08);
-  --radius: 12px;
+  --bg: #0a0a14; --surface: #14142a; --border: #1e1e3a;
+  --text: #e2e8f0; --muted: #64748b; --accent: #06b6d4;
+  --accent-dim: rgba(6,182,212,0.15); --amber: #f59e0b;
+  --emerald: #10b981; --red: #ef4444; --radius: 12px;
   --shadow: 0 4px 24px rgba(0,0,0,0.3);
 }
-
 html { font-size: 15px; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  padding: 2rem 1.5rem;
-  line-height: 1.5;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  padding: 2rem 1.5rem; line-height: 1.5;
 }
-
 .container { max-width: 1360px; margin: 0 auto; }
 
-/* --- Header --- */
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-.header h1 {
-  font-size: 1.65rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
+/* Header */
+.header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+.header h1 { font-size: 1.65rem; font-weight: 600; display: flex; align-items: center; gap: 0.6rem; }
 .header h1 svg { width: 28px; height: 28px; }
-.header-date {
-  font-size: 0.85rem;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.4rem 1rem;
-}
+.header-right { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.header-date { font-size: 0.85rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 1rem; }
 
-/* --- Empty state --- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 5rem 2rem;
-  text-align: center;
+/* Domain filter */
+.domain-select {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 0.45rem 0.75rem; border-radius: 8px;
+  font-size: 0.85rem; cursor: pointer; outline: none;
 }
+.domain-select:focus { border-color: var(--accent); }
+.domain-select option { background: var(--surface); color: var(--text); }
+
+/* Empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5rem 2rem; text-align: center; }
 .empty-state svg { width: 64px; height: 64px; opacity: 0.3; margin-bottom: 1.5rem; }
 .empty-state h2 { font-size: 1.3rem; font-weight: 500; color: var(--muted); }
 
-/* --- Totals row --- */
-.totals {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  box-shadow: var(--shadow);
-}
-.total-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.total-card .label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  font-weight: 500;
-}
-.total-card .value {
-  font-size: 1.8rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
+/* Cards */
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; box-shadow: var(--shadow); }
+.total-card { display: flex; flex-direction: column; gap: 0.35rem; }
+.total-card .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+.total-card .value { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
 .total-card .sub { font-size: 0.82rem; color: var(--muted); }
 
-/* --- Grid rows --- */
 .row { margin-bottom: 1.5rem; }
-.grid-2 {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+.grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+.grid-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } .grid-3 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) {
+  body { padding: 1rem 0.75rem; }
+  .grid-3 { grid-template-columns: 1fr; } .grid-equal { grid-template-columns: 1fr; }
+  .totals { grid-template-columns: repeat(2, 1fr); }
+  .header h1 { font-size: 1.3rem; } .total-card .value { font-size: 1.4rem; }
 }
-.grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1.5rem;
-}
-.grid-equal {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
+@media (max-width: 420px) { .totals { grid-template-columns: 1fr; } }
 
-.card-title {
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-/* --- Chart --- */
+.card-title { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 1rem; }
 .chart-wrapper { position: relative; height: 240px; }
 .chart-wrapper canvas { width: 100% !important; height: 100% !important; }
 
-/* --- Bar rows (browsers / OS) --- */
 .bar-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.bar-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-.bar-row .bar-label {
-  font-size: 0.82rem;
-  flex: 0 0 auto;
-  min-width: 6.5rem;
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bar-row .bar-track {
-  flex: 1;
-  height: 22px;
-  background: var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-}
-.bar-row .bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  min-width: 2px;
-  transition: width 0.6s ease;
-}
-.bar-row .bar-count {
-  font-size: 0.78rem;
-  color: var(--muted);
-  flex: 0 0 3.5rem;
-  text-align: right;
-}
+.bar-row { display: flex; align-items: center; gap: 0.75rem; }
+.bar-row .bar-label { font-size: 0.82rem; flex: 0 0 auto; min-width: 6.5rem; max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-row .bar-track { flex: 1; height: 22px; background: var(--border); border-radius: 4px; overflow: hidden; position: relative; }
+.bar-row .bar-fill { height: 100%; border-radius: 4px; min-width: 2px; transition: width 0.6s ease; }
+.bar-row .bar-count { font-size: 0.78rem; color: var(--muted); flex: 0 0 3.5rem; text-align: right; }
 
-/* --- Top pages table --- */
 .table-wrap { overflow-x: auto; }
 table.data { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-table.data th {
-  text-align: left;
-  padding: 0.5rem 0.75rem;
-  color: var(--muted);
-  font-weight: 500;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-table.data td {
-  padding: 0.45rem 0.75rem;
-  border-bottom: 1px solid rgba(30, 30, 58, 0.5);
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+table.data th { text-align: left; padding: 0.5rem 0.75rem; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.data td { padding: 0.45rem 0.75rem; border-bottom: 1px solid rgba(30,30,58,0.5); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 table.data tr:last-child td { border-bottom: none; }
 table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
-.pct-bar {
-  display: inline-block;
-  height: 6px;
-  border-radius: 3px;
-  vertical-align: middle;
-  margin-right: 0.4rem;
-}
+.pct-bar { display: inline-block; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 0.4rem; }
 
-/* --- Status codes --- */
 .status-list { display: flex; flex-direction: column; gap: 0.5rem; }
-
-/* --- 404 & IPs --- */
 .list-compact { display: flex; flex-direction: column; gap: 0.35rem; }
-.list-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.82rem;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid rgba(30, 30, 58, 0.3);
-}
+.list-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(30,30,58,0.3); }
 .list-item:last-child { border-bottom: none; }
-.list-item .key {
-  max-width: 70%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.list-item .val {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-/* --- Responsive --- */
-@media (max-width: 1024px) {
-  .grid-2 { grid-template-columns: 1fr; }
-  .grid-3 { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 700px) {
-  body { padding: 1rem 0.75rem; }
-  .grid-3 { grid-template-columns: 1fr; }
-  .grid-equal { grid-template-columns: 1fr; }
-  .totals { grid-template-columns: repeat(2, 1fr); }
-  .header h1 { font-size: 1.3rem; }
-  .total-card .value { font-size: 1.4rem; }
-}
-@media (max-width: 420px) {
-  .totals { grid-template-columns: 1fr; }
-}
+.list-item .key { max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-item .val { color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 </style>
 </head>
 <body>
-<div class="container">
+<div id="app" class="container">
+  <!-- Header -->
   <header class="header">
     <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
       Trafic
     </h1>
-    <span class="header-date" id="headerDate">—</span>
+    <div class="header-right">
+      <select class="domain-select" v-model="selectedDomain">
+        <option value="">Tous les domaines</option>
+        <option v-for="d in domains" :key="d" :value="d">{{ d }}</option>
+      </select>
+      <span class="header-date">{{ dateLabel }}</span>
+    </div>
   </header>
 
-  <div id="app"></div>
+  <!-- Empty state -->
+  <div v-if="!data" class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/></svg>
+    <h2>En attente de données de trafic</h2>
+  </div>
+
+  <template v-if="data">
+    <!-- Totals -->
+    <div class="totals">
+      <div class="card total-card"><span class="label">Visiteurs uniques</span><span class="value">{{ f(g.unique_visitors) }}</span></div>
+      <div class="card total-card"><span class="label">Requêtes totales</span><span class="value">{{ f(g.total_requests) }}</span></div>
+      <div class="card total-card"><span class="label">Pages consultées</span><span class="value">{{ f(g.unique_files) }}</span><span class="sub">{{ f(sumHits(data.requests)) }} hits</span></div>
+      <div class="card total-card"><span class="label">Bots / Crawlers</span><span class="value">{{ botPct.toFixed(1) }}%</span><span class="sub">{{ f(botHits) }} requêtes</span></div>
+    </div>
+
+    <!-- Chart + Pages -->
+    <div class="row grid-2">
+      <div class="card">
+        <div class="card-title">Visiteurs par jour</div>
+        <div v-if="data.visitors && data.visitors.length" class="chart-wrapper"><canvas ref="chartCanvas"></canvas></div>
+        <div v-else style="padding:2rem 0;text-align:center;color:var(--muted);font-size:0.9rem;">Données journalières non disponibles</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pages les plus consultées</div>
+        <div class="table-wrap">
+          <table v-if="data.requests && data.requests.length" class="data">
+            <thead><tr><th>Page</th><th class="num">Hits</th><th class="num">%</th></tr></thead>
+            <tbody>
+              <tr v-for="p in data.requests.slice(0, 15)" :key="p.data">
+                <td :title="p.data">{{ shortUrl(p.data) }}</td>
+                <td class="num">{{ f(p.hits.count) }}</td>
+                <td class="num"><span class="pct-bar" :style="{width: (p.hits.count/maxPageHits)*50 + 'px', background: 'var(--accent)'}"></span>{{ pct(p.hits.count, totalHits).toFixed(1) }}%</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0;">Aucune donnée</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browsers + OS + Status -->
+    <div class="row grid-3">
+      <!-- Browsers -->
+      <div class="card">
+        <div class="card-title">Navigateurs</div>
+        <div class="bar-list">
+          <template v-if="data.browsers && data.browsers.length">
+            <div class="bar-row" v-for="(b, i) in data.browsers.slice(0, 8)" :key="b.data">
+              <span class="bar-label" :title="b.data">{{ b.data }}</span>
+              <div class="bar-track"><div class="bar-fill" :style="{width: pct(b.hits.count, maxBrowserHits) + '%', background: browserColors[i % browserColors.length]}"></div></div>
+              <span class="bar-count">{{ f(b.hits.count) }}</span>
+            </div>
+          </template>
+          <div v-else style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>
+        </div>
+      </div>
+      <!-- OS -->
+      <div class="card">
+        <div class="card-title">Systèmes d'exploitation</div>
+        <div class="bar-list">
+          <template v-if="data.os && data.os.length">
+            <div class="bar-row" v-for="(o, i) in data.os.slice(0, 6)" :key="o.data">
+              <span class="bar-label" :title="o.data">{{ o.data }}</span>
+              <div class="bar-track"><div class="bar-fill" :style="{width: pct(o.hits.count, maxOSHits) + '%', background: osColors[i % osColors.length]}"></div></div>
+              <span class="bar-count">{{ f(o.hits.count) }}</span>
+            </div>
+          </template>
+          <div v-else style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>
+        </div>
+      </div>
+      <!-- Status codes -->
+      <div class="card">
+        <div class="card-title">Codes de statut</div>
+        <div class="status-list">
+          <template v-if="statusGrouped.length">
+            <div class="bar-row" v-for="s in statusGrouped" :key="s.code">
+              <span class="bar-label" style="min-width:6rem;">{{ statusLabel(s.code) }}</span>
+              <div class="bar-track"><div class="bar-fill" :style="{width: s.pct + '%', background: statusColor(s.code)}"></div></div>
+              <span class="bar-count">{{ f(s.hits) }} ({{ s.pct.toFixed(1) }}%)</span>
+            </div>
+          </template>
+          <div v-else style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 404 + Domaines -->
+    <div class="row grid-equal">
+      <div class="card">
+        <div class="card-title">Pages 404</div>
+        <div class="list-compact">
+          <template v-if="data.not_found && data.not_found.length">
+            <div class="list-item" v-for="n in data.not_found.slice(0, 10)" :key="n.data">
+              <span class="key" :title="n.data">{{ n.data }}</span>
+              <span class="val">{{ f(n.hits.count) }}</span>
+            </div>
+          </template>
+          <div v-else style="color:var(--muted);font-size:0.85rem;">Aucune erreur 404</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Domaines</div>
+        <div class="list-compact">
+          <template v-if="data.hosts && data.hosts.length">
+            <div class="list-item" v-for="h in data.hosts.slice(0, 10)" :key="h.data">
+              <span class="key">{{ h.data }}</span>
+              <span class="val">{{ f(h.hits.count) }}</span>
+            </div>
+          </template>
+          <div v-else style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>
+        </div>
+      </div>
+    </div>
+  </template>
 </div>
 
 <script>
-(async function () {
-  const EMPTY_HTML = `
-    <div class="empty-state">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 3v18h18"/><path d="M7 16l4-8 4 4 4-6"/>
-      </svg>
-      <h2>En attente de donn&eacute;es de trafic</h2>
-    </div>`;
+const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
 
-  let raw;
-  try {
-    const res = await fetch('/api/stats', { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    raw = await res.json();
-  } catch {
-    document.getElementById('app').innerHTML = EMPTY_HTML;
-    return;
-  }
+createApp({
+  setup() {
+    const raw = ref(null);
+    const selectedDomain = ref('');
+    const chartCanvas = ref(null);
+    let chartInstance = null;
 
-  raw = normalizeGoAccess(raw);
+    // Colors
+    const browserColors = ['#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899'];
+    const osColors = ['#f59e0b','#f97316','#ef4444','#10b981','#14b8a6','#06b6d4'];
 
-  if (!raw || (!raw.total_visitors && !raw.total_requests && !raw.unique_visitors && !raw.requests && !raw.browsers)) {
-    document.getElementById('app').innerHTML = EMPTY_HTML;
-    return;
-  }
-
-  function normalizeGoAccess(go) {
-    if (go.total_visitors !== undefined || go.unique_visitors !== undefined) return go;
-    const result = {};
-    if (go.general) {
-      result.total_visitors = go.general.unique_visitors || 0;
-      result.total_requests = go.general.total_requests || 0;
-      result.valid_requests = go.general.valid_requests || 0;
-      result.unique_visitors = go.general.unique_visitors || 0;
-      result.generated_on = go.general.date_time || '';
-    }
-    const flatField = (obj) => {
-      if (!obj || !obj.data || !Array.isArray(obj.data)) return obj;
-      const flat = {};
-      obj.data.forEach(item => {
-        const key = item.data || 'unknown';
-        flat[key] = {
-          hits: item.hits?.count || 0,
-          visitors: item.visitors?.count || 0,
-          bytes: item.bytes?.count || 0
-        };
-        if (item.method) flat[key].method = item.method;
-      });
-      return flat;
+    // Helpers
+    const f = (n) => (n || 0).toLocaleString('fr-FR');
+    const pct = (v, total) => total > 0 ? ((v / total) * 100) : 0;
+    const shortUrl = (s) => {
+      const clean = s.replace(/\?.*$/, '');
+      return clean.length > 50 ? clean.slice(0, 47) + '...' : clean;
     };
-    if (go.visitors && go.visitors.data) {
-      result.unique_visitors = go.visitors.data.map(v => ({
-        date: v.data || '',
-        visitors: v.visitors?.count || 0
-      }));
-    }
-    result.browsers = flatField(go.browsers);
-    result.os = flatField(go.os);
-    result.requests = flatField(go.requests);
-    result.hosts = flatField(go.hosts);
-    result.status_codes = flatField(go.status_codes);
-    result.not_found = flatField(go.not_found);
-    return result;
-  }
+    const sumHits = (arr) => arr ? arr.reduce((a, v) => a + (v.hits?.count || 0), 0) : 0;
+    const botKeywords = ['bot','crawler','spider','curl','Go-http-client','Python','Wget','Scan','Headless','Apache-Http','Java','libwww','perl','ruby','php','axios','node-fetch'];
 
-  const go = raw;
-
-  /* ---------- helpers ---------- */
-  const sumHits = obj => obj ? Object.values(obj).reduce((a, v) => a + (v.hits || v.count || 0), 0) : 0;
-  const sumVisitors = obj => obj ? Object.values(obj).reduce((a, v) => a + (v.visitors || 0), 0) : 0;
-  const topEntries = (obj, n = 10) => obj ? Object.entries(obj)
-    .map(([k, v]) => ({ key: k, hits: v.hits || v.count || 0, visitors: v.visitors || 0 }))
-    .sort((a, b) => b.hits - a.hits).slice(0, n) : [];
-  const pct = (v, total) => total > 0 ? ((v / total) * 100) : 0;
-
-  /* ---------- totals ---------- */
-  const totalVisitors = go.total_visitors || 0;
-  const totalRequests = go.total_requests || 0;
-  const validRequests = go.valid_requests || totalRequests;
-
-  /* ---------- visitors time series ---------- */
-  let visitorsData = [];
-  if (go.unique_visitors) {
-    if (Array.isArray(go.unique_visitors)) {
-      visitorsData = go.unique_visitors.map(v => ({ date: v.date || v.date_str || '', visitors: v.visitors || 0 }));
-    } else if (typeof go.unique_visitors === 'object') {
-      visitorsData = Object.entries(go.unique_visitors).map(([date, visitors]) => ({
-        date,
-        visitors: typeof visitors === 'number' ? visitors : (visitors.visitors || 0)
-      }));
-    }
-    visitorsData.sort((a, b) => new Date(a.date) - new Date(b.date));
-  }
-
-  /* ---------- browsers ---------- */
-  const browsers = topEntries(go.browsers, 8);
-
-  /* ---------- OS ---------- */
-  const os = topEntries(go.os, 6);
-
-  /* ---------- pages ---------- */
-  const pages = topEntries(go.requests, 10);
-
-  /* ---------- status codes ---------- */
-  const statuses = go.status_codes ? Object.entries(go.status_codes)
-    .map(([k, v]) => ({ code: k, hits: v.hits || v.count || 0 }))
-    .sort((a, b) => b.hits - a.hits) : [];
-
-  /* ---------- 404 ---------- */
-  const notFound = topEntries(go.not_found, 8);
-
-  /* ---------- hosts ---------- */
-  const hosts = topEntries(go.hosts, 8);
-
-  /* ---------- bots ---------- */
-  let botHits = 0;
-  const botKeywords = ['bot', 'crawler', 'spider', 'curl', 'Go-http-client', 'Python', 'Wget', 'Scan', 'Headless', 'Apache-Http', 'Java', 'libwww', 'perl', 'ruby', 'php', 'axios', 'node-fetch'];
-  if (go.browsers) {
-    Object.entries(go.browsers).forEach(([name, v]) => {
-      const hits = v.hits || v.count || 0;
-      if (botKeywords.some(k => name.toLowerCase().includes(k.toLowerCase()))) {
-        botHits += hits;
+    // Computed: display data (aggregate or per-domain)
+    const data = computed(() => {
+      if (!raw.value) return null;
+      if (selectedDomain.value && raw.value.by_domain?.[selectedDomain.value]) {
+        return raw.value.by_domain[selectedDomain.value];
       }
+      return raw.value;
     });
-  }
-  const botPct = totalRequests > 0 ? ((botHits / totalRequests) * 100) : 0;
 
-  /* ---------- date ---------- */
-  const genDate = go.generated_on_str || go.generated_on || '';
-  const fmtDate = genDate
-    ? new Date(genDate).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : (visitorsData.length > 0
-      ? `Du ${visitorsData[0].date} au ${visitorsData[visitorsData.length - 1].date}`
-      : new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' }));
+    const g = computed(() => data.value?.general || {});
 
-  /* ---------- status helpers ---------- */
-  const totalHitsAll = validRequests || totalRequests;
-  const statusColors = {
-    '2': '#10b981', '3': '#06b6d4', '4': '#f59e0b', '5': '#ef4444', '0': '#64748b'
-  };
-  const statusLabels = { '2': '2xx Succès', '3': '3xx Redirections', '4': '4xx Erreurs client', '5': '5xx Erreurs serveur', '0': 'Autres' };
+    const domains = computed(() => raw.value?.domains || []);
 
-  /* ========== RENDER ========== */
-  const app = document.getElementById('app');
-
-  // header date
-  document.getElementById('headerDate').textContent = fmtDate;
-
-  // totals row
-  const pagesCount = Object.keys(go.requests || {}).length;
-  let totalsHTML = `<div class="totals">
-    <div class="card total-card"><span class="label">Visiteurs uniques</span><span class="value">${totalVisitors.toLocaleString('fr-FR')}</span></div>
-    <div class="card total-card"><span class="label">Requêtes totales</span><span class="value">${totalRequests.toLocaleString('fr-FR')}</span></div>
-    <div class="card total-card"><span class="label">Pages consultées</span><span class="value">${pagesCount.toLocaleString('fr-FR')}</span><span class="sub">${sumHits(go.requests).toLocaleString('fr-FR')} hits</span></div>
-    <div class="card total-card"><span class="label">Bots / Crawlers</span><span class="value">${botPct.toFixed(1)}%</span><span class="sub">${botHits.toLocaleString('fr-FR')} requêtes</span></div>
-  </div>`;
-
-  // visitors chart
-  let chartHTML = '';
-  if (visitorsData.length > 0) {
-    chartHTML = `<div class="card"><div class="card-title">Visiteurs par jour</div><div class="chart-wrapper"><canvas id="visitorsChart"></canvas></div></div>`;
-  } else if (totalVisitors > 0) {
-    chartHTML = `<div class="card"><div class="card-title">Visiteurs</div><div style="padding:2rem 0;text-align:center;color:var(--muted);font-size:0.9rem;">Données journalières non disponibles</div></div>`;
-  }
-
-  // top pages table
-  let pagesHTML = `<div class="card"><div class="card-title">Pages les plus consultées</div><div class="table-wrap">`;
-  if (pages.length > 0) {
-    const maxHits = pages[0].hits || 1;
-    pagesHTML += `<table class="data"><thead><tr><th>Page</th><th class="num">Hits</th><th class="num">%</th></tr></thead><tbody>`;
-    pages.forEach(p => {
-      const pp = pct(p.hits, totalHitsAll);
-      const shortKey = p.key.replace(/\?.*$/, '').length > 45
-        ? p.key.replace(/\?.*$/, '').slice(0, 42) + '...'
-        : p.key.replace(/\?.*$/, '');
-      pagesHTML += `<tr><td title="${p.key.replace(/"/g, '&quot;')}">${shortKey}</td><td class="num">${p.hits.toLocaleString('fr-FR')}</td><td class="num"><span class="pct-bar" style="width:${(p.hits/maxHits)*50}px;background:var(--accent)"></span>${pp.toFixed(1)}%</td></tr>`;
+    const dateLabel = computed(() => {
+      const gen = data.value?.general?.date_time || '';
+      if (gen) {
+        try { return new Date(gen).toLocaleDateString('fr-FR', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+        catch { return gen; }
+      }
+      return '';
     });
-    pagesHTML += `</tbody></table>`;
-  } else {
-    pagesHTML += `<div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0;">Aucune donnée</div>`;
-  }
-  pagesHTML += `</div></div>`;
 
-  // browsers bars
-  let browsersHTML = `<div class="card"><div class="card-title">Navigateurs</div><div class="bar-list">`;
-  const displayBrowsers = browsers.length > 0 ? browsers : [{ key: 'Non détecté', hits: totalRequests, visitors: totalVisitors }];
-  if (displayBrowsers.length > 0) {
-    const maxB = displayBrowsers[0].hits || 1;
-    const colors = ['#64748b','#06b6d4','#0ea5e9','#3b82f6','#6366f1','#8b5cf6','#a855f7','#d946ef','#ec4899'];
-    displayBrowsers.forEach((b, i) => {
-      const w = pct(b.hits, maxB);
-      browsersHTML += `<div class="bar-row">
-        <span class="bar-label" title="${b.key.replace(/"/g, '&quot;')}">${b.key}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${colors[i % colors.length]}"></div></div>
-        <span class="bar-count">${b.hits.toLocaleString('fr-FR')}</span>
-      </div>`;
+    const totalHits = computed(() => g.value.total_requests || 0);
+
+    const maxPageHits = computed(() => {
+      const r = data.value?.requests;
+      return r?.length ? r[0].hits.count : 1;
     });
-  } else {
-    browsersHTML += `<div style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>`;
-  }
-  browsersHTML += `</div></div>`;
-
-  // OS bars
-  let osHTML = `<div class="card"><div class="card-title">Systèmes d'exploitation</div><div class="bar-list">`;
-  const displayOs = os.length > 0 ? os : [{ key: 'Non détecté', hits: totalRequests, visitors: totalVisitors }];
-  if (displayOs.length > 0) {
-    const maxO = displayOs[0].hits || 1;
-    const colors = ['#64748b','#f59e0b','#f97316','#ef4444','#10b981','#14b8a6','#06b6d4'];
-    displayOs.forEach((o, i) => {
-      const w = pct(o.hits, maxO);
-      osHTML += `<div class="bar-row">
-        <span class="bar-label" title="${o.key.replace(/"/g, '&quot;')}">${o.key}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${colors[i % colors.length]}"></div></div>
-        <span class="bar-count">${o.hits.toLocaleString('fr-FR')}</span>
-      </div>`;
+    const maxBrowserHits = computed(() => {
+      const b = data.value?.browsers;
+      return b?.length ? b[0].hits.count : 1;
     });
-  } else {
-    osHTML += `<div style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>`;
-  }
-  osHTML += `</div></div>`;
-
-  // status codes grouped
-  const grouped = {};
-  statuses.forEach(s => {
-    const prefix = s.code.charAt(0);
-    if (!grouped[prefix]) grouped[prefix] = 0;
-    grouped[prefix] += s.hits;
-  });
-  let statusHTML = `<div class="card"><div class="card-title">Codes de statut</div><div class="status-list">`;
-  if (statuses.length > 0) {
-    const totalS = Object.values(grouped).reduce((a, b) => a + b, 0) || 1;
-    ['2','3','4','5','0'].forEach(p => {
-      const v = grouped[p] || 0;
-      if (v === 0) return;
-      const w = pct(v, totalS);
-      statusHTML += `<div class="bar-row">
-        <span class="bar-label" style="min-width:6rem;">${statusLabels[p] || p + 'xx'}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${statusColors[p] || '#64748b'}"></div></div>
-        <span class="bar-count">${v.toLocaleString('fr-FR')} (${w.toFixed(1)}%)</span>
-      </div>`;
+    const maxOSHits = computed(() => {
+      const o = data.value?.os;
+      return o?.length ? o[0].hits.count : 1;
     });
-  } else {
-    statusHTML += `<div style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>`;
-  }
-  statusHTML += `</div></div>`;
 
-  // 404 list
-  let nfHTML = `<div class="card"><div class="card-title">Pages 404</div>`;
-  if (notFound.length > 0) {
-    nfHTML += `<div class="list-compact">`;
-    notFound.forEach(n => {
-      nfHTML += `<div class="list-item"><span class="key" title="${n.key.replace(/"/g, '&quot;')}">${n.key}</span><span class="val">${n.hits.toLocaleString('fr-FR')}</span></div>`;
-    });
-    nfHTML += `</div>`;
-  } else {
-    nfHTML += `<div style="color:var(--muted);font-size:0.85rem;">Aucune erreur 404</div>`;
-  }
-  nfHTML += `</div>`;
-
-  // top IPs
-  let ipHTML = `<div class="card"><div class="card-title">Domaines</div>`;
-  if (hosts.length > 0) {
-    ipHTML += `<div class="list-compact">`;
-    hosts.forEach(h => {
-      ipHTML += `<div class="list-item"><span class="key">${h.key}</span><span class="val">${h.hits.toLocaleString('fr-FR')}</span></div>`;
-    });
-    ipHTML += `</div>`;
-  } else {
-    ipHTML += `<div style="color:var(--muted);font-size:0.85rem;">Aucune donnée</div>`;
-  }
-  ipHTML += `</div>`;
-
-  // assemble
-  app.innerHTML = totalsHTML + `
-    <div class="row grid-2">
-      ${chartHTML || `<div class="card"><div class="card-title">Visiteurs</div><div style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0;">Aucune donnée</div></div>`}
-      ${pagesHTML}
-    </div>
-    <div class="row grid-equal">
-      ${browsersHTML}
-      ${osHTML}
-    </div>
-    <div class="row grid-equal">
-      ${statusHTML}
-      <div class="grid-equal" style="gap:1.5rem;">
-        ${nfHTML}
-        ${ipHTML}
-      </div>
-    </div>
-  `;
-
-  /* ========== Chart.js ========== */
-  if (visitorsData.length > 0 && document.getElementById('visitorsChart')) {
-    const canvas = document.getElementById('visitorsChart');
-    const ctx = canvas.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, 'rgba(6,182,212,0.25)');
-    gradient.addColorStop(1, 'rgba(6,182,212,0.01)');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: visitorsData.map(d => d.date),
-        datasets: [{
-          label: 'Visiteurs',
-          data: visitorsData.map(d => d.visitors),
-          borderColor: '#06b6d4',
-          backgroundColor: gradient,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 3,
-          pointBackgroundColor: '#06b6d4',
-          pointBorderColor: '#0a0a14',
-          pointBorderWidth: 1.5,
-          borderWidth: 2,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1a1a2e',
-            titleColor: '#e2e8f0',
-            bodyColor: '#94a3b8',
-            borderColor: '#2a2a4a',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 8,
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: '#64748b', maxTicksLimit: 10, maxRotation: 0 },
-            grid: { color: 'rgba(30,30,58,0.5)', drawBorder: false },
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: '#64748b', precision: 0 },
-            grid: { color: 'rgba(30,30,58,0.5)', drawBorder: false },
-          }
-        },
-        interaction: {
-          intersect: false,
-          mode: 'index',
+    // Bot detection
+    const botHits = computed(() => {
+      const browsers = data.value?.browsers || [];
+      let total = 0;
+      browsers.forEach(b => {
+        if (botKeywords.some(k => b.data.toLowerCase().includes(k.toLowerCase()))) {
+          total += b.hits?.count || 0;
         }
-      }
+      });
+      return total;
     });
+    const botPct = computed(() => pct(botHits.value, totalHits.value));
+
+    // Status codes grouped
+    const statusGrouped = computed(() => {
+      const sc = data.value?.status_codes || [];
+      const labels = { '2': '2xx Succès', '3': '3xx Redirections', '4': '4xx Erreurs client', '5': '5xx Erreurs serveur', '0': 'Autres' };
+      const colors = { '2': '#10b981', '3': '#06b6d4', '4': '#f59e0b', '5': '#ef4444', '0': '#64748b' };
+      const total = sc.reduce((a, s) => a + (s.hits?.count || 0), 0) || 1;
+      return sc.map(s => {
+        const prefix = s.data.charAt(0);
+        return { code: prefix, hits: s.hits?.count || 0, pct: pct(s.hits?.count || 0, total), label: labels[prefix] || prefix + 'xx', color: colors[prefix] || '#64748b' };
+      });
+    });
+    const statusLabel = (c) => {
+      const labels = { '2': '2xx Succès', '3': '3xx Redirections', '4': '4xx Erreurs client', '5': '5xx Erreurs serveur', '0': 'Autres' };
+      return labels[c] || c + 'xx';
+    };
+    const statusColor = (c) => {
+      const colors = { '2':'#10b981', '3':'#06b6d4', '4':'#f59e0b', '5':'#ef4444', '0':'#64748b' };
+      return colors[c] || '#64748b';
+    };
+
+    // Chart rendering
+    const renderChart = () => {
+      nextTick(() => {
+        const visitors = data.value?.visitors;
+        if (!visitors || !visitors.length || !chartCanvas.value) {
+          if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+          return;
+        }
+        if (chartInstance) chartInstance.destroy();
+        const ctx = chartCanvas.value.getContext('2d');
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: visitors.map(v => v.data),
+            datasets: [{
+              label: 'Visiteurs',
+              data: visitors.map(v => v.visitors?.count || 1),
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6,182,212,0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: 'rgba(30,30,58,0.5)' } },
+              y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(30,30,58,0.5)' }, beginAtZero: true }
+            }
+          }
+        });
+      });
+    };
+
+    // Watch for domain change or data change → re-render chart
+    watch([data, chartCanvas], renderChart, { deep: true });
+
+    // Fetch data
+    const fetchData = async () => {
+      try {
+        const res = await fetch('/api/stats', { signal: AbortSignal.timeout(8000) });
+        if (res.ok) raw.value = await res.json();
+      } catch {}
+    };
+
+    onMounted(async () => {
+      await fetchData();
+      renderChart();
+      setInterval(fetchData, 30000);
+    });
+
+    return { data, g, domains, selectedDomain, chartCanvas, dateLabel,
+             f, pct, shortUrl, sumHits, botHits, botPct,
+             statusGrouped, statusLabel, statusColor,
+             maxPageHits, maxBrowserHits, maxOSHits,
+             browserColors, osColors, totalHits };
   }
-})();
+}).mount('#app');
 </script>
 </body>
 </html>

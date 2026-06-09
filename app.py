@@ -11,15 +11,14 @@ from datetime import datetime, timezone
 from collections import defaultdict
 from pathlib import Path
 
-from fastapi import FastAPI, responses
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-app = FastAPI(title="Stats", version="0.1.0")
+app = FastAPI(title="Stats", version="0.2.0")
 
 LOG_DIR = Path("/logs")
-REFRESH_INTERVAL = 30  # seconds
+REFRESH_INTERVAL = 30
 
-# In-memory cached stats
 _stats_cache: dict = {}
 _stats_ts: float = 0
 
@@ -50,42 +49,117 @@ def _ua_os(ua: str) -> str:
     return "Non détecté"
 
 
-def _empty_stats() -> dict:
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+def _new_domain_stats():
+    """Return fresh per-domain stats dict."""
     return {
+        "general": {
+            "total_requests": 0, "valid_requests": 0, "failed_requests": 0,
+            "unique_visitors": 0, "unique_files": 0,
+        },
+        "hosts": defaultdict(lambda: {"hits": 0, "visitors": set()}),
+        "pages": defaultdict(lambda: {"hits": 0, "methods": set()}),
+        "statuses": defaultdict(int),
+        "browsers": defaultdict(lambda: {"hits": 0, "visitors": set()}),
+        "os": defaultdict(lambda: {"hits": 0, "visitors": set()}),
+        "not_found": defaultdict(int),
+        "visitors_by_date": defaultdict(lambda: {"visitors": set(), "hits": 0}),
+        "all_visitors": set(),
+        "lines": 0,
+    }
+
+
+def _empty_api() -> dict:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    empty = {
         "general": {
             "start_date": "", "end_date": "", "date_time": now,
             "total_requests": 0, "valid_requests": 0, "failed_requests": 0,
             "unique_visitors": 0, "unique_files": 0,
         },
-        "visitors": {"metadata": {}, "data": []},
-        "requests": {"metadata": {}, "data": []},
-        "hosts": {"metadata": {}, "data": []},
-        "browsers": {"metadata": {}, "data": []},
-        "os": {"metadata": {}, "data": []},
-        "status_codes": {"metadata": {}, "data": []},
-        "not_found": {"metadata": {}, "data": []},
+        "visitors": [], "requests": [], "hosts": [],
+        "browsers": [], "os": [], "status_codes": [], "not_found": [],
+        "domains": [], "by_domain": {},
+    }
+    return empty
+
+
+def _to_flat(obj):
+    return [
+        {"hits": {"count": v["hits"]},
+         "visitors": {"count": len(v["visitors"])},
+         "data": k}
+        for k, v in sorted(obj.items(), key=lambda x: -x[1]["hits"])
+    ]
+
+
+def _to_flat_pages(pages):
+    return [
+        {
+            "hits": {"count": v["hits"]},
+            "visitors": {"count": 0},
+            "data": k,
+            "method": list(v["methods"])[0] if v["methods"] else "GET",
+        }
+        for k, v in sorted(pages.items(), key=lambda x: -x[1]["hits"])
+    ]
+
+
+def _status_group(s: int) -> str:
+    return f"{s // 100}xx"
+
+
+def _build_section(d: dict) -> dict:
+    """Convert internal domain stats to API format."""
+    status_groups = defaultdict(int)
+    for code, count in d["statuses"].items():
+        status_groups[_status_group(code)] += count
+
+    return {
+        "general": {
+            "start_date": min(d["visitors_by_date"].keys()) if d["visitors_by_date"] else "",
+            "end_date": max(d["visitors_by_date"].keys()) if d["visitors_by_date"] else "",
+            "total_requests": d["lines"],
+            "valid_requests": d["lines"],
+            "failed_requests": sum(1 for s in d["statuses"] if int(s) >= 500),
+            "unique_visitors": len(d["all_visitors"]),
+            "unique_files": len(d["pages"]),
+        },
+        "visitors": [
+            {"hits": {"count": v["hits"]},
+             "visitors": {"count": len(v["visitors"])},
+             "bytes": {"count": 0},
+             "data": k}
+            for k, v in sorted(d["visitors_by_date"].items())
+        ],
+        "requests": _to_flat_pages(d["pages"]),
+        "hosts": _to_flat(d["hosts"]),
+        "browsers": _to_flat(d["browsers"]),
+        "os": _to_flat(d["os"]),
+        "status_codes": [
+            {"hits": {"count": v}, "visitors": {"count": 0},
+             "bytes": {"count": 0}, "data": k}
+            for k, v in sorted(status_groups.items())
+        ],
+        "not_found": [
+            {"hits": {"count": v}, "visitors": {"count": 0},
+             "bytes": {"count": 0}, "data": k}
+            for k, v in sorted(d["not_found"].items(), key=lambda x: -x[1])
+        ],
     }
 
 
 def _parse_logs() -> dict:
-    """Parse all JSON log files in LOG_DIR and return stats dict."""
+    """Parse all JSON log files and return stats with per-domain breakdown."""
     if not LOG_DIR.is_dir():
-        return _empty_stats()
+        return _empty_api()
 
     log_files = sorted(LOG_DIR.glob("*.log"), key=os.path.getmtime, reverse=True)
     if not log_files:
-        return _empty_stats()
+        return _empty_api()
 
-    hosts: dict = defaultdict(lambda: {"hits": 0, "visitors": set()})
-    pages: dict = defaultdict(lambda: {"hits": 0, "methods": set()})
-    statuses: dict = defaultdict(int)
-    browsers: dict = defaultdict(lambda: {"hits": 0, "visitors": set()})
-    os_list: dict = defaultdict(lambda: {"hits": 0, "visitors": set()})
-    not_found: dict = defaultdict(int)
-    visitors_by_date: dict = defaultdict(lambda: {"visitors": set(), "hits": 0})
-    all_visitors: set = set()
-    total_lines = 0
+    # Aggregate + per-domain
+    agg = _new_domain_stats()
+    per_domain = defaultdict(_new_domain_stats)
 
     for log_file in log_files:
         try:
@@ -99,7 +173,6 @@ def _parse_logs() -> dict:
                     except json.JSONDecodeError:
                         continue
 
-                    total_lines += 1
                     client = e.get("ClientHost", "?")
                     host = e.get("RequestHost", "-")
                     path = e.get("RequestPath", "/")
@@ -108,106 +181,46 @@ def _parse_logs() -> dict:
                     ua = e.get("RequestUserAgent", "-")
                     dt = _parse_time(e.get("StartLocal") or e.get("time", ""))
 
-                    hosts[host]["hits"] += 1
-                    hosts[host]["visitors"].add(client)
-                    pages[host + path]["hits"] += 1
-                    pages[host + path]["methods"].add(method)
-                    statuses[status] += 1
+                    # Track in both aggregate and per-domain
+                    for bucket in (agg, per_domain[host]):
+                        bucket["lines"] += 1
+                        bucket["hosts"][host]["hits"] += 1
+                        bucket["hosts"][host]["visitors"].add(client)
+                        bucket["pages"][host + path]["hits"] += 1
+                        bucket["pages"][host + path]["methods"].add(method)
+                        bucket["statuses"][status] += 1
 
-                    browser_name = (ua.split("/")[0] if ua and ua != "-"
-                                    else "Non détecté")
-                    browsers[browser_name]["hits"] += 1
-                    browsers[browser_name]["visitors"].add(client)
+                        bn = (ua.split("/")[0] if ua and ua != "-"
+                              else "Non détecté")
+                        bucket["browsers"][bn]["hits"] += 1
+                        bucket["browsers"][bn]["visitors"].add(client)
 
-                    os_name = _ua_os(ua)
-                    os_list[os_name]["hits"] += 1
-                    os_list[os_name]["visitors"].add(client)
+                        osn = _ua_os(ua)
+                        bucket["os"][osn]["hits"] += 1
+                        bucket["os"][osn]["visitors"].add(client)
 
-                    if status == 404:
-                        not_found[path] += 1
+                        if status == 404:
+                            bucket["not_found"][host + path] += 1
 
-                    all_visitors.add(client)
-                    if dt:
-                        date_str = dt.strftime("%Y-%m-%d")
-                        visitors_by_date[date_str]["visitors"].add(client)
-                        visitors_by_date[date_str]["hits"] += 1
+                        bucket["all_visitors"].add(client)
+                        if dt:
+                            date_str = dt.strftime("%Y-%m-%d")
+                            bucket["visitors_by_date"][date_str]["visitors"].add(client)
+                            bucket["visitors_by_date"][date_str]["hits"] += 1
+
         except (IOError, OSError):
             continue
 
-    def to_flat(obj):
-        return [
-            {"hits": {"count": v["hits"]},
-             "visitors": {"count": len(v["visitors"])},
-             "data": k}
-            for k, v in sorted(obj.items(), key=lambda x: -x[1]["hits"])
-        ]
-
-    def to_flat_pages():
-        return [
-            {
-                "hits": {"count": v["hits"]},
-                "visitors": {"count": 0},
-                "data": k,
-                "method": list(v["methods"])[0] if v["methods"] else "GET",
-            }
-            for k, v in sorted(pages.items(), key=lambda x: -x[1]["hits"])
-        ]
-
-    def status_group(s: int) -> str:
-        return f"{s // 100}xx"
-
-    status_groups: dict = defaultdict(int)
-    for code, count in statuses.items():
-        status_groups[status_group(code)] += count
-
-    return {
-        "general": {
-            "start_date": min(visitors_by_date.keys()) if visitors_by_date else "",
-            "end_date": max(visitors_by_date.keys()) if visitors_by_date else "",
-            "date_time": datetime.now(timezone.utc).strftime(
-                "%Y-%m-%d %H:%M:%S UTC"),
-            "total_requests": total_lines,
-            "valid_requests": total_lines,
-            "failed_requests": sum(1 for s in statuses if int(s) >= 500),
-            "unique_visitors": len(all_visitors),
-            "unique_files": len(pages),
-        },
-        "visitors": {
-            "metadata": {},
-            "data": [
-                {"hits": {"count": v["hits"]},
-                 "visitors": {"count": len(v["visitors"])},
-                 "bytes": {"count": 0},
-                 "data": k}
-                for k, v in sorted(visitors_by_date.items())
-            ],
-        },
-        "requests": {"metadata": {}, "data": to_flat_pages()},
-        "hosts": {"metadata": {}, "data": to_flat(hosts)},
-        "browsers": {"metadata": {}, "data": to_flat(browsers)},
-        "os": {"metadata": {}, "data": to_flat(os_list)},
-        "status_codes": {
-            "metadata": {},
-            "data": [
-                {"hits": {"count": v}, "visitors": {"count": 0},
-                 "bytes": {"count": 0}, "data": k}
-                for k, v in sorted(status_groups.items())
-            ],
-        },
-        "not_found": {
-            "metadata": {},
-            "data": [
-                {"hits": {"count": v}, "visitors": {"count": 0},
-                 "bytes": {"count": 0}, "data": k}
-                for k, v in sorted(not_found.items(),
-                                   key=lambda x: -x[1])
-            ],
-        },
+    # Build output
+    result = _build_section(agg)
+    result["domains"] = sorted(per_domain.keys())
+    result["by_domain"] = {
+        d: _build_section(s) for d, s in sorted(per_domain.items())
     }
+    return result
 
 
 async def _refresh_stats():
-    """Periodically refresh the cached stats."""
     global _stats_cache, _stats_ts
     while True:
         _stats_cache = _parse_logs()
