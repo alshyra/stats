@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 app = FastAPI(title="Stats", version="0.2.0")
 
@@ -266,6 +266,59 @@ async def get_system():
         except (json.JSONDecodeError, OSError):
             pass
     return {"error": "system.json not available"}
+
+
+@app.get("/metrics")
+async def get_metrics():
+    lines = [
+        "# HELP stats_requests_total Total HTTP requests served",
+        "# TYPE stats_requests_total counter",
+        f'stats_requests_total {_stats_cache.get("general", {}).get("total_requests", 0)}',
+        "# HELP stats_visitors_unique Unique visitor count",
+        "# TYPE stats_visitors_unique gauge",
+        f'stats_visitors_unique {_stats_cache.get("general", {}).get("unique_visitors", 0)}',
+        "# HELP stats_bot_requests_total Bot/crawler requests",
+        "# TYPE stats_bot_requests_total counter",
+        f'stats_bot_requests_total {_stats_cache.get("general", {}).get("bot_requests", 0)}',
+        "# HELP stats_pages_unique Unique pages served",
+        "# TYPE stats_pages_unique gauge",
+        f'stats_pages_unique {_stats_cache.get("general", {}).get("unique_files", 0)}',
+        "# HELP stats_requests_by_host Requests per host",
+        "# TYPE stats_requests_by_host gauge",
+    ]
+    for h in _stats_cache.get("hosts", []):
+        lines.append(f'stats_requests_by_host{{host="{h["data"]}"}} {h["hits"]["count"]}')
+
+    lines += [
+        "# HELP stats_requests_by_status Requests per status code group",
+        "# TYPE stats_requests_by_status gauge",
+    ]
+    for sc in _stats_cache.get("status_codes", []):
+        lines.append(f'stats_requests_by_status{{code="{sc["data"]}"}} {sc["hits"]["count"]}')
+
+    # System metrics from mounted file
+    sys_path = Path("/system.json")
+    if sys_path.exists():
+        try:
+            sys = json.loads(sys_path.read_text())
+            lines += [
+                "# HELP sys_cpu_percent CPU usage percent",
+                "# TYPE sys_cpu_percent gauge",
+                f'sys_cpu_percent {sys.get("cpu", 0)}',
+                "# HELP sys_memory_percent RAM usage percent",
+                "# TYPE sys_memory_percent gauge",
+                f'sys_memory_percent {sys.get("memory", {}).get("percent", 0)}',
+                "# HELP sys_disk_percent Disk usage percent",
+                "# TYPE sys_disk_percent gauge",
+                f'sys_disk_percent {sys.get("disk", 0)}',
+                "# HELP sys_fail2ban_banned Banned IPs count",
+                "# TYPE sys_fail2ban_banned gauge",
+                f'sys_fail2ban_banned {sys.get("fail2ban", {}).get("banned_count", 0)}',
+            ]
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return Response("\n".join(lines) + "\n", media_type="text/plain")
 
 
 @app.get("/")
