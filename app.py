@@ -243,6 +243,17 @@ async def get_stats():
     return _stats_cache
 
 
+@app.get("/api/system")
+async def get_system():
+    sys_path = Path("/system.json")
+    if sys_path.exists():
+        try:
+            return json.loads(sys_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"error": "system.json not available"}
+
+
 @app.get("/")
 async def get_index():
     html_path = Path(__file__).parent / "index.html"

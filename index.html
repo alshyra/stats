@@ -116,6 +116,32 @@ table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <template v-if="data">
+    <!-- System stats -->
+    <div v-if="sys" class="totals" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+      <div class="card total-card">
+        <span class="label">CPU</span>
+        <span class="value">{{ sys.cpu }}%</span>
+      </div>
+      <div class="card total-card">
+        <span class="label">RAM</span>
+        <span class="value">{{ sys.memory?.percent || 0 }}%</span>
+        <span class="sub">{{ formatBytes(sys.memory?.used) }} / {{ formatBytes(sys.memory?.total) }}</span>
+      </div>
+      <div class="card total-card">
+        <span class="label">Disque</span>
+        <span class="value">{{ sys.disk }}%</span>
+      </div>
+      <div class="card total-card">
+        <span class="label">Uptime</span>
+        <span class="value" style="font-size:1.1rem;">{{ sys.uptime }}</span>
+      </div>
+      <div class="card total-card">
+        <span class="label">Fail2ban</span>
+        <span class="value" :style="{color: sys.fail2ban?.banned_count > 0 ? 'var(--amber)' : 'var(--emerald)'}">{{ sys.fail2ban?.banned_count || 0 }}</span>
+        <span class="sub">IPs bannies</span>
+      </div>
+    </div>
+
     <!-- Totals -->
     <div class="totals">
       <div class="card total-card"><span class="label">Visiteurs uniques</span><span class="value">{{ f(g.unique_visitors) }}</span></div>
@@ -231,6 +257,7 @@ const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
 createApp({
   setup() {
     const raw = ref(null);
+    const sys = ref(null);
     const selectedDomain = ref('');
     const chartCanvas = ref(null);
     let chartInstance = null;
@@ -247,6 +274,14 @@ createApp({
       return clean.length > 50 ? clean.slice(0, 47) + '...' : clean;
     };
     const sumHits = (arr) => arr ? arr.reduce((a, v) => a + (v.hits?.count || 0), 0) : 0;
+    const formatBytes = (b) => {
+      if (!b) return '0 B';
+      const units = ['B','KB','MB','GB','TB'];
+      let i = 0;
+      let v = b;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return v.toFixed(1) + ' ' + units[i];
+    };
     const botKeywords = ['bot','crawler','spider','curl','Go-http-client','Python','Wget','Scan','Headless','Apache-Http','Java','libwww','perl','ruby','php','axios','node-fetch'];
 
     // Computed: display data (aggregate or per-domain)
@@ -372,10 +407,18 @@ createApp({
       await fetchData();
       renderChart();
       setInterval(fetchData, 30000);
+      const fetchSys = async () => {
+        try {
+          const r = await fetch('/api/system', { signal: AbortSignal.timeout(5000) });
+          if (r.ok) sys.value = await r.json();
+        } catch {}
+      };
+      await fetchSys();
+      setInterval(fetchSys, 60000);
     });
 
-    return { data, g, domains, selectedDomain, chartCanvas, dateLabel,
-             f, pct, shortUrl, sumHits, botHits, botPct,
+    return { data, g, domains, selectedDomain, sys, chartCanvas, dateLabel,
+             f, pct, shortUrl, sumHits, formatBytes, botHits, botPct,
              statusGrouped, statusLabel, statusColor,
              maxPageHits, maxBrowserHits, maxOSHits,
              browserColors, osColors, totalHits };
