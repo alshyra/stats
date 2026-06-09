@@ -3,7 +3,7 @@ FROM python:3.12-alpine
 RUN pip install --no-cache-dir uv
 
 WORKDIR /app
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
 COPY app.py index.html ./
