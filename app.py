@@ -110,8 +110,8 @@ def _parse_logs() -> dict:
 
                     hosts[host]["hits"] += 1
                     hosts[host]["visitors"].add(client)
-                    pages[path]["hits"] += 1
-                    pages[path]["methods"].add(method)
+                    pages[host + path]["hits"] += 1
+                    pages[host + path]["methods"].add(method)
                     statuses[status] += 1
 
                     browser_name = (ua.split("/")[0] if ua and ua != "-"
