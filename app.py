@@ -16,7 +16,15 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="Stats", version="0.2.0")
 
-VPS_IPS = {"51.210.179.59", "127.0.0.1", "::1"}
+BOT_UA_PATTERNS = [
+    "bot", "crawler", "spider", "curl", "Go-http-client",
+    "python", "wget", "scan", "headless", "Apache-Http",
+    "java", "libwww", "perl", "ruby", "php", "axios",
+    "node-fetch", "masscan", "nmap", "zgrab",
+]
+
+
+VPS_IPS = {"127.0.0.1", "::1"}
 
 LOG_DIR = Path("/logs")
 REFRESH_INTERVAL = 30
@@ -56,7 +64,7 @@ def _new_domain_stats():
     return {
         "general": {
             "total_requests": 0, "valid_requests": 0, "failed_requests": 0,
-            "unique_visitors": 0, "unique_files": 0,
+            "unique_visitors": 0, "unique_files": 0, "bot_requests": 0,
         },
         "hosts": defaultdict(lambda: {"hits": 0, "visitors": set()}),
         "pages": defaultdict(lambda: {"hits": 0, "methods": set()}),
@@ -125,6 +133,7 @@ def _build_section(d: dict) -> dict:
             "failed_requests": sum(1 for s in d["statuses"] if int(s) >= 500),
             "unique_visitors": len(d["all_visitors"]),
             "unique_files": len(d["pages"]),
+            "bot_requests": d["general"].get("bot_requests", 0),
         },
         "visitors": [
             {"hits": {"count": v["hits"]},
@@ -184,10 +193,13 @@ def _parse_logs() -> dict:
                     status = e.get("OriginStatus", 0) or e.get("DownstreamStatus", 0)
                     ua = e.get("RequestUserAgent", "-")
                     dt = _parse_time(e.get("StartLocal") or e.get("time", ""))
+                    is_bot = any(p in ua.lower() for p in BOT_UA_PATTERNS) if ua and ua != "-" else False
 
                     # Track in both aggregate and per-domain
                     for bucket in (agg, per_domain[host]):
                         bucket["lines"] += 1
+                        if is_bot:
+                            bucket["general"]["bot_requests"] += 1
                         bucket["hosts"][host]["hits"] += 1
                         bucket["hosts"][host]["visitors"].add(client)
                         bucket["pages"][host + path]["hits"] += 1

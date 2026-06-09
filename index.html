@@ -147,7 +147,7 @@ table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
       <div class="card total-card"><span class="label">Visiteurs uniques</span><span class="value">{{ f(g.unique_visitors) }}</span></div>
       <div class="card total-card"><span class="label">Requêtes totales</span><span class="value">{{ f(g.total_requests) }}</span></div>
       <div class="card total-card"><span class="label">Pages consultées</span><span class="value">{{ f(g.unique_files) }}</span><span class="sub">{{ f(sumHits(data.requests)) }} hits</span></div>
-      <div class="card total-card"><span class="label">Bots / Crawlers</span><span class="value">{{ botPct.toFixed(1) }}%</span><span class="sub">{{ f(botHits) }} requêtes</span></div>
+      <div class="card total-card"><span class="label">Bots / Crawlers</span><span class="value">{{ botPct.toFixed(1) }}%</span><span class="sub">{{ f(g.bot_requests || 0) }} requêtes</span></div>
     </div>
 
     <!-- Chart + Pages -->
@@ -282,7 +282,6 @@ createApp({
       while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
       return v.toFixed(1) + ' ' + units[i];
     };
-    const botKeywords = ['bot','crawler','spider','curl','Go-http-client','Python','Wget','Scan','Headless','Apache-Http','Java','libwww','perl','ruby','php','axios','node-fetch'];
 
     // Computed: display data (aggregate or per-domain)
     const data = computed(() => {
@@ -321,17 +320,8 @@ createApp({
       return o?.length ? o[0].hits.count : 1;
     });
 
-    // Bot detection
-    const botHits = computed(() => {
-      const browsers = data.value?.browsers || [];
-      let total = 0;
-      browsers.forEach(b => {
-        if (botKeywords.some(k => b.data.toLowerCase().includes(k.toLowerCase()))) {
-          total += b.hits?.count || 0;
-        }
-      });
-      return total;
-    });
+    // Bot detection (server-side)
+    const botHits = computed(() => g.value.bot_requests || 0);
     const botPct = computed(() => pct(botHits.value, totalHits.value));
 
     // Status codes grouped
